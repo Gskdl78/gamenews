@@ -75,3 +75,31 @@ export async function getPrincessConnectNews({
 
   return data as NewsItem[]
 } 
+
+/**
+ * 檢查新聞是否已存在於資料庫中
+ * @param url - 新聞的唯一 URL
+ */
+export async function checkIfNewsExistsByUrl(url: string): Promise<boolean> {
+  const { data: newsData, error: newsError } = await supabase
+    .from('news')
+    .select('url')
+    .eq('url', url)
+    .single();
+
+  if (newsError && newsError.code !== 'PGRST116') { // PGRST116: a single row was not returned
+    console.error('檢查 news 表時出錯:', newsError);
+  }
+
+  const { data: updatesData, error: updatesError } = await supabase
+    .from('updates')
+    .select('url')
+    .eq('url', url)
+    .single();
+
+  if (updatesError && updatesError.code !== 'PGRST116') {
+    console.error('檢查 updates 表時出錯:', updatesError);
+  }
+
+  return !!newsData || !!updatesData;
+} 

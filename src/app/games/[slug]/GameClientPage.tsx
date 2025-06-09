@@ -43,7 +43,7 @@ const GameClientPage: React.FC<GameClientPageProps> = ({ sections, gameSlug }) =
   const handlePageChange = (page: number, subSectionTitle: string) => {
     const params = new URLSearchParams(searchParams.toString());
     params.set(`${subSectionTitle}_page`, page.toString());
-    router.push(`${pathname}?${params.toString()}`);
+    router.push(`${pathname}?${params.toString()}`, { scroll: false });
   };
 
   return (

@@ -1,31 +1,18 @@
-import { crawlNews, clearDatabase } from '../lib/crawler'
+import { crawlNews } from '../lib/crawler'
 
 async function main() {
   try {
-    console.log('\n=== 開始執行爬蟲 ===')
-    console.log('執行時間:', new Date().toLocaleString())
-    
-    await clearDatabase();
+    console.log('開始執行爬蟲腳本...')
     await crawlNews()
-    
-    console.log('\n=== 爬蟲執行完成 ===')
-    console.log('完成時間:', new Date().toLocaleString())
+    console.log('爬蟲腳本執行完畢。')
   } catch (error) {
-    console.error('\n=== 爬蟲執行失敗 ===')
-    console.error('錯誤時間:', new Date().toLocaleString())
-    console.error('錯誤詳情:', error)
-    
+    console.error('執行爬蟲腳本時發生錯誤:', error)
     // 如果是 playwright 相關錯誤，輸出更多信息
-    if (error instanceof Error) {
-      console.error('錯誤名稱:', error.name)
-      console.error('錯誤信息:', error.message)
-      console.error('錯誤堆棧:', error.stack)
+    if (error instanceof Error && error.message.includes('playwright')) {
+        console.error("Playwright 相關錯誤，請檢查瀏覽器是否正確安裝或路徑是否正確。")
     }
+    process.exit(1)
   }
 }
 
-console.log('爬蟲腳本已啟動')
-console.log('系統時間:', new Date().toLocaleString())
-
-// 執行一次
 main() 

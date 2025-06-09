@@ -1,5 +1,5 @@
 import { chromium } from 'playwright'
-import { supabase } from './supabase'
+import { supabase, checkIfNewsExistsByUrl } from './supabase'
 import { summarizeContent } from './ollama'
 import { subMonths, subDays, parseISO, isAfter, isBefore, parse, isValid } from 'date-fns'
 import { chunk } from 'lodash'
@@ -39,26 +39,6 @@ const INCLUDED_CATEGORIES = [
   '戰隊',
   '競賽'
 ]
-
-// 新增：獨立的資料庫清除函數
-export async function clearDatabase() {
-  console.log('開始清除資料庫...')
-  
-  // 使用 .not('id', 'is', null) 來安全地刪除所有行
-  const { error: newsError } = await supabase.from('news').delete().not('id', 'is', null)
-  if (newsError) {
-    console.error('清除 news 資料表失敗:', newsError)
-    throw newsError
-  }
-  
-  const { error: updatesError } = await supabase.from('updates').delete().not('id', 'is', null)
-  if (updatesError) {
-    console.error('清除 updates 資料表失敗:', updatesError)
-    throw updatesError
-  }
-
-  console.log('資料庫清除成功')
-}
 
 // 檢查是否為更新相關新聞
 function isUpdateNews(title: string): boolean {
@@ -224,9 +204,9 @@ async function processNewsItem(item: any, page: any, type: 'news' | 'updates') {
     console.log(`正在處理 ${type === 'news' ? '活動' : '更新'} 新聞: ${item.title}`);
     await page.goto(item.url, { waitUntil: 'networkidle', timeout: 60000 });
 
-    // 統一使用 'article.news-detail-article' 選擇器
+    // 將選擇器從 'article.news-detail-article' 改為 'article.news_con'
     const newsDetail = await page.evaluate(() => {
-      const article = document.querySelector('article.news-detail-article');
+      const article = document.querySelector('article.news_con');
       if (!article) return { content: '', imageUrl: '' };
       
       const img = article.querySelector('img');
@@ -261,28 +241,6 @@ async function processNewsItem(item: any, page: any, type: 'news' | 'updates') {
   } catch (error) {
     console.error(`處理新聞時發生錯誤: ${item.title}`, error);
     throw new Error(`處理單條新聞時發生錯誤: ${error instanceof Error ? error.message : String(error)}`);
-  }
-}
-
-// 清理過期的活動新聞
-async function cleanupExpiredNews() {
-  try {
-    console.log('開始清理過期的活動新聞...')
-    const { data: news } = await supabase
-      .from('news')
-      .select('*')
-
-    if (!news) return
-
-    for (const item of news) {
-      if (isEventEnded(item.summary)) {
-        console.log(`刪除過期活動: ${item.title}`)
-        await supabase.from('news').delete().eq('id', item.id)
-      }
-    }
-    console.log('清理完成')
-  } catch (error) {
-    console.error('清理過期活動時發生錯誤:', error)
   }
 }
 
@@ -393,127 +351,96 @@ async function clickWithRetry(page: any, selector: string, maxRetries = 3) {
 }
 
 export async function crawlNews() {
+  console.log('爬蟲任務開始...')
   const browser = await chromium.launch({ headless: true })
-  const context = await browser.newContext({
-    userAgent:
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36'
-  })
-  const page = await context.newPage()
+  const page = await browser.newPage()
 
   try {
-    // 清除資料庫
-    await clearDatabase()
-    console.log('資料庫已清除，開始爬取新聞...')
+    let currentPage = 1
+    let shouldContinue = true
 
-    // 設定一個月前的日期作為爬取範圍
-    const oneMonthAgo = subMonths(new Date(), 1)
-    console.log(`設定爬取範圍：從 ${oneMonthAgo.toISOString()} 到現在`)
+    while (shouldContinue) {
+      const url = `${PCR_NEWS_URL}?page=${currentPage}`
+      console.log(`正在導覽至: ${url}`)
+      await page.goto(url, { waitUntil: 'networkidle', timeout: 60000 })
+      console.log(`頁面 ${currentPage} 載入成功`)
 
-    let pageNum = 1
-    let totalUpdateNews = 0
-    let totalEventNews = 0
+      const newsOnPage = await page.evaluate(() => {
+        const items = Array.from(document.querySelectorAll('article.news_con dl dd'))
+        return items.map(dd => {
+          const dt = dd.previousElementSibling
+          if (!dt) return null
 
-    while (true) {
-      try {
-        // 構建頁面 URL
-        const pageUrl = pageNum === 1 ? PCR_NEWS_URL : `${PCR_NEWS_URL}?page=${pageNum}`
-        console.log(`訪問頁面: ${pageUrl}`)
+          const link = dd.querySelector('a')
+          const categorySpan = dt.querySelector('span')
+          
+          const url = link ? link.getAttribute('href') || '' : ''
+          const title = link ? link.textContent?.trim() || '' : ''
+          const dateMatch = dt.textContent?.match(/(\d{4})\.(\d{2})\.(\d{2})/)
+          const date = dateMatch ? dateMatch.slice(1).join('-') : ''
+          const category = categorySpan ? categorySpan.textContent?.trim() || '' : ''
 
-        await page.goto(pageUrl, { waitUntil: 'networkidle' })
-        await waitForSelectorWithRetry(page, '.news_con')
-
-        const newsItems = await page.evaluate(() => {
-          const items = Array.from(document.querySelectorAll('.news_con dd a'))
-          return items
-            .map(item => {
-              const dt = item.closest('dd')?.previousElementSibling
-              const dateMatch = dt?.textContent?.match(/(\d{4}\.\d{2}\.\d{2})/)
-              const dateText = dateMatch ? dateMatch[1].replace(/\./g, '-') : ''
-
-              const url = item.getAttribute('href') || ''
-              return {
-                title: item.textContent?.trim() || '',
-                url: url.startsWith('http') ? url : `https://www.princessconnect.so-net.tw${url}`,
-                date: dateText
-              }
-            })
-            .filter(item => item.url && item.title && item.date)
-        })
-
-        if (!newsItems.length) {
-          console.log(`第 ${pageNum} 頁沒有找到新聞項目，停止爬取。`)
-          break
-        }
-
-        let updateNewsCount = 0
-        let eventNewsCount = 0
-        let foundOldNews = false
-
-        for (const item of newsItems) {
-          try {
-            // 檢查日期是否在一個月內
-            const newsDate = parse(item.date, 'yyyy-MM-dd', new Date())
-            if (!isValid(newsDate) || isBefore(newsDate, oneMonthAgo)) {
-              console.log(`找到早於一個月的公告 (${item.date})，停止爬取: ${item.title}`)
-              foundOldNews = true
-              break
-            }
-
-            // 跳過不需要的新聞
-            if (shouldExcludeTitle(item.title)) continue
-
-            // 修正：完善分類邏輯
-            const isEvent = isValidCategory(item.title)
-            const type = isEvent ? 'news' : 'updates'
-
-            // 檢查新聞是否已存在
-            const needsUpdate = await shouldUpdateNews(item.url, type)
-
-            if (!needsUpdate) {
-              console.log(`跳過已存在的新聞: ${item.title}`)
-              continue
-            }
-
-            if (isEvent) {
-              eventNewsCount++
-              totalEventNews++
-              await processEventNews(item, page)
-            } else {
-              updateNewsCount++
-              totalUpdateNews++
-              await processUpdateNews(item, page)
-            }
-          } catch (error) {
-            console.error('處理單條新聞時發生錯誤:', error)
-            continue
+          return {
+            title,
+            url: url.startsWith('http') ? url : `https://www.princessconnect.so-net.tw${url}`,
+            date,
+            category,
           }
+        }).filter(item => item && item.url && item.title && item.date && item.category)
+      })
+
+      if (newsOnPage.length === 0) {
+        console.log(`第 ${currentPage} 頁沒有找到新聞，停止爬取。`)
+        shouldContinue = false
+        continue
+      }
+      
+      console.log(`第 ${currentPage} 頁共找到 ${newsOnPage.length} 則新聞，開始處理...`)
+
+      for (const item of newsOnPage) {
+        if (!item) continue;
+        const exists = await checkIfNewsExistsByUrl(item.url);
+        if (exists) {
+          console.log(`發現已存在的公告: "${item.title}"。停止爬取。`);
+          shouldContinue = false;
+          break; // 中斷內部 for 迴圈
         }
 
-        console.log(
-          `第 ${pageNum} 頁找到 ${newsItems.length} 條新聞，其中更新新聞 ${updateNewsCount} 條，活動新聞 ${eventNewsCount} 條`
-        )
-
-        if (foundOldNews) {
-          console.log('找到超過一個月的新聞，爬取結束。')
-          break
+        if (shouldExcludeTitle(item.title)) {
+          console.log(`根據關鍵字排除新聞: ${item.title}`)
+          continue
         }
+        
+        if (isUpdateNews(item.title)) {
+          await processNewsItem(item, page, 'updates')
+        } else if (isValidCategory(item.category)) {
+          await processNewsItem(item, page, 'news')
+        } else {
+          console.log(`新聞分類不符或被排除，跳過: ${item.title} (分類: ${item.category})`)
+        }
+      }
 
-        pageNum++
-      } catch (error) {
-        console.error(`處理第 ${pageNum} 頁時發生錯誤:`, error)
-        break
+      if (shouldContinue) {
+        const nextPageButton = await page.$('div.paging a[title="下一頁"]');
+        if (nextPageButton) {
+          currentPage++;
+        } else {
+          console.log('沒有找到下一頁按鈕，爬取結束。');
+          shouldContinue = false;
+        }
       }
     }
+    
+    console.log('所有新聞處理完畢。')
+    
+    // await cleanupExpiredNews(); // 停用過期清理功能
 
-    // 不再清理過期新聞，以保留歷史紀錄
-    // await cleanupExpiredNews();
-
-    console.log(`爬蟲完成！總共找到 ${totalUpdateNews} 條更新新聞，${totalEventNews} 條活動新聞`)
   } catch (error) {
-    console.error('爬取新聞時發生錯誤:', error)
+    console.error(`爬取新聞時發生致命錯誤:`, error)
     throw error
   } finally {
     await browser.close()
+    console.log('瀏覽器已關閉，爬蟲任務結束。')
   }
 }
 
