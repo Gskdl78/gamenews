@@ -1,131 +1,91 @@
 'use client';
 
-import { useState, useCallback } from 'react';
-import { 
-  Box,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Button,
-  IconButton,
-  Typography 
-} from '@mui/material';
-import CloseIcon from '@mui/icons-material/Close';
-import NewsSection from '@/components/NewsSection';
-import PaginatedHistoricalActivities from '@/components/PaginatedHistoricalActivities';
+import React, { useState, useCallback } from 'react';
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
+import { Box, Typography, Divider, Pagination, Paper } from '@mui/material';
 import { NewsItem } from '@/types/news';
+import { GameSlug } from '@/types/index';
+import NewsCard from '@/components/NewsCard';
+import NewsDetailModal from '@/components/NewsDetailModal';
 
-interface GameClientPageProps {
-  gameSlug: string;
-  category: string;
-  sections?: { title: string; description: string; data: NewsItem[] }[];
-  paginatedSection?: { title: string; description: string; data: NewsItem[] };
+interface SubSection {
+  title: string;
+  data: NewsItem[];
+  pageCount?: number;
+  currentPage?: number;
 }
 
-const renderSummary = (summaryText: string) => {
-  if (!summaryText) return <Typography>暫無摘要資訊。</Typography>;
-  const cleanedText = summaryText.replace('好的，根據公告內容，提取的資訊如下：', '').trim();
-  
-  return cleanedText.split('\n').map((line, index) => {
-    const parts = line.split('**').map((part, i) => 
-      i % 2 === 1 ? <strong key={i}>{part}</strong> : part
-    );
+interface Section {
+  title: string;
+  description: string;
+  subSections: SubSection[];
+}
 
-    if (line.includes('活動開始時間') || line.includes('開始時間')) {
-      return <Typography key={index} component="p" sx={{ color: 'success.main', fontWeight: 'bold' }}>{parts}</Typography>;
-    }
-    if (line.includes('活動結束時間') || line.includes('結束時間')) {
-      return <Typography key={index} component="p" sx={{ color: 'error.main', fontWeight: 'bold' }}>{parts}</Typography>;
-    }
-    return <Typography key={index} component="p">{parts}</Typography>;
-  });
-};
+interface GameClientPageProps {
+  sections: Section[];
+  gameSlug: GameSlug;
+}
 
-export default function GameClientPage({ 
-  gameSlug,
-  category,
-  sections = [],
-  paginatedSection
-}: GameClientPageProps) {
+const GameClientPage: React.FC<GameClientPageProps> = ({ sections, gameSlug }) => {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [selectedNews, setSelectedNews] = useState<NewsItem | null>(null);
 
-  const handleOpen = useCallback((item: NewsItem) => {
+  const handleOpenModal = useCallback((item: NewsItem) => {
     setSelectedNews(item);
   }, []);
 
-  const handleClose = useCallback(() => {
+  const handleCloseModal = useCallback(() => {
     setSelectedNews(null);
   }, []);
 
+  const handlePageChange = (page: number, subSectionTitle: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set(`${subSectionTitle}_page`, page.toString());
+    router.push(`${pathname}?${params.toString()}`);
+  };
+
   return (
-    <Box sx={{ 
-      p: { xs: 1, sm: 2, md: 3 },
-      backgroundColor: 'rgba(255, 255, 255, 0.9)', // 半透明白色背景
-      borderRadius: 2,
-      margin: 2,
-      boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)' // 輕微陰影
-    }}>
-      {sections.map(section => (
-        <NewsSection 
-          key={section.title}
-          title={section.title} 
-          description={section.description} 
-          news={section.data} 
-          onItemClick={handleOpen} 
-        />
-      ))}
-      
-      {paginatedSection && (
-        <NewsSection title={paginatedSection.title} description={paginatedSection.description}>
-          <PaginatedHistoricalActivities 
-            activities={paginatedSection.data} 
-            onItemClick={handleOpen} 
-            sectionTitle={paginatedSection.title}
-          />
-        </NewsSection>
-      )}
-
-      {sections.length === 0 && !paginatedSection && (
-         <Box sx={{ p: 2, bgcolor: 'grey.100', borderRadius: 1, textAlign: 'center' }}>
-            <Typography variant="body1" color="text.secondary">
-                目前沒有關於 {category} 的相關消息
-            </Typography>
+    <Box>
+      {sections.map((section, sectionIndex) => (
+        <Box key={sectionIndex} sx={{ mb: 4 }}>
+          {section.subSections.map((subSection, subIndex) => (
+            <Paper key={subIndex} elevation={3} sx={{ p: 3, mb: 4, borderRadius: '16px' }}>
+              <Typography variant="h4" component="h2" gutterBottom sx={{ fontWeight: 'bold' }}>
+                {subSection.title}
+              </Typography>
+              <Divider sx={{ mb: 2 }} />
+              {subSection.data.length > 0 ? (
+                subSection.data.map((item) => (
+                  <NewsCard
+                    key={item.id}
+                    item={item}
+                    onItemClick={handleOpenModal}
+                    gameSlug={gameSlug}
+                    subSectionTitle={subSection.title}
+                  />
+                ))
+              ) : (
+                <Typography>此分類目前沒有消息。</Typography>
+              )}
+              {subSection.pageCount && subSection.pageCount > 1 && (
+                <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+                  <Pagination
+                    count={subSection.pageCount}
+                    page={subSection.currentPage}
+                    onChange={(_, page) => handlePageChange(page, subSection.title)}
+                    color="primary"
+                  />
+                </Box>
+              )}
+            </Paper>
+          ))}
         </Box>
-      )}
-
-      {selectedNews && (
-        <Dialog 
-          open={!!selectedNews} 
-          onClose={handleClose} 
-          scroll="paper"
-          fullWidth
-          maxWidth="md"
-          PaperProps={{ sx: { borderRadius: 2 } }}
-        >
-          <DialogTitle sx={{ m: 0, p: 2, fontWeight: 'bold' }}>
-            {selectedNews.title}
-            <IconButton
-              aria-label="close"
-              onClick={handleClose}
-              sx={{
-                position: 'absolute',
-                right: 8,
-                top: 8,
-                color: (theme) => theme.palette.grey[500],
-              }}
-            >
-              <CloseIcon />
-            </IconButton>
-          </DialogTitle>
-          <DialogContent dividers sx={{ p: 3 }}>
-            {renderSummary(selectedNews.summary)}
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={handleClose}>關閉</Button>
-          </DialogActions>
-        </Dialog>
-      )}
+      ))}
+      <NewsDetailModal item={selectedNews} onClose={handleCloseModal} />
     </Box>
   );
-} 
+};
+
+export default GameClientPage; 

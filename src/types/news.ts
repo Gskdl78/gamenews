@@ -1,13 +1,14 @@
 export interface NewsItem {
-  id: string;
+  id: number;
   title: string;
+  category: string;
   content: string;
-  image_url?: string;
-  summary: string;
+  url: string;
+  published_at: string;
   created_at: string;
   updated_at: string;
-  category: string;
-  type: 'news' | 'update';
-  start_date: string | null;
-  end_date: string | null;
+  start_date?: string;
+  end_date?: string;
+  image_url?: string;
+  summary?: string;
 } 
