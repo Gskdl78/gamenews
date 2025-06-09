@@ -1,15 +1,4 @@
-export interface NewsItem {
-  id: string;
-  title: string;
-  content: string;
-  category: string;
-  created_at: string;
-  updated_at: string;
-  image_url?: string;
-  type?: 'news' | 'update';
-  start_date: string | null;
-  end_date: string | null;
-}
+import { NewsItem } from '@/types/news';
 
 interface NewsParams {
   type: string;
@@ -29,6 +18,7 @@ export async function getBlueArchiveNews({
     id: `${page}-${i}`,
     title: `${category} ${type} ${i + 1}`,
     content: '活動內容...',
+    summary: '這裡是自動產生的摘要...',
     category,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),

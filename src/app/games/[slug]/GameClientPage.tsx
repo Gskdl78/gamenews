@@ -16,7 +16,8 @@ import NewsSection from '@/components/NewsSection';
 import PaginatedHistoricalActivities from '@/components/PaginatedHistoricalActivities';
 import { NewsItem } from '@/types/news';
 
-interface BlueArchiveClientPageProps {
+interface GameClientPageProps {
+  gameSlug: string;
   category: string;
   sections?: { title: string; description: string; data: NewsItem[] }[];
   paginatedSection?: { title: string; description: string; data: NewsItem[] };
@@ -41,11 +42,12 @@ const renderSummary = (summaryText: string) => {
   });
 };
 
-export default function BlueArchiveClientPage({ 
+export default function GameClientPage({ 
+  gameSlug,
   category,
   sections = [],
   paginatedSection
-}: BlueArchiveClientPageProps) {
+}: GameClientPageProps) {
   const [selectedNews, setSelectedNews] = useState<NewsItem | null>(null);
 
   const handleOpen = useCallback((item: NewsItem) => {
