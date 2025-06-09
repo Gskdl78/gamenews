@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Box, Pagination, Typography } from '@mui/material';
 import NewsCard from './NewsCard';
-import { NewsItem } from '@/lib/api';
+import { NewsItem } from '@/types/news';
 
 interface PaginatedHistoricalActivitiesProps {
   activities: NewsItem[];
@@ -11,7 +11,7 @@ interface PaginatedHistoricalActivitiesProps {
   sectionTitle: string;
 }
 
-const ITEMS_PER_PAGE = 5;
+const ITEMS_PER_PAGE = 3;
 
 export default function PaginatedHistoricalActivities({ activities, onItemClick, sectionTitle }: PaginatedHistoricalActivitiesProps) {
   const [page, setPage] = useState(1);

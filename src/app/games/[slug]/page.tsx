@@ -71,9 +71,42 @@ export default async function GameNewsPage({
       sections = [{ title: "大決戰", description: "所有大決戰相關消息", data: grandAssaultNews }];
     }
   } else if (slug === 'princess-connect') {
-    // 公主連結的邏輯
-    const news = await getNews({});
-    sections = [{ title: "最新消息", description: "所有公主連結的最新消息", data: news }];
+    if (category === 'all') {
+      const [upcoming, ending, latest] = await Promise.all([
+        getNews({ type: 'upcoming' }),
+        getNews({ type: 'ending_soon' }),
+        getNews({ type: 'latest', limit: 3 })
+      ]);
+      sections = [
+        { title: "即將開始", description: "", data: upcoming },
+        { title: "即將結束", description: "", data: ending },
+        { title: "最新消息", description: "", data: latest }
+      ];
+    } else if (category === '活動') {
+      const [upcoming, ending, historical] = await Promise.all([
+        getNews({ type: 'upcoming', category: '活動' }),
+        getNews({ type: 'ending_soon', category: '活動' }),
+        getNews({ type: 'historical', category: '活動' })
+      ]);
+      sections = [
+        { title: "即將開始的活動", description: "", data: upcoming },
+        { title: "即將結束的活動", description: "", data: ending },
+      ];
+      paginatedSection = { title: "歷史活動", description: "", data: historical };
+    } else if (category === '轉蛋') {
+        const [ongoing, historical] = await Promise.all([
+            getNews({ type: 'ongoing', category: '轉蛋' }),
+            getNews({ type: 'historical', category: '轉蛋' })
+        ]);
+        sections = [{ title: "目前轉蛋", description: "", data: ongoing }];
+        paginatedSection = { title: "過往轉蛋", description: "", data: historical };
+    } else if (category === '更新') {
+        const updates = await getNews({ type: 'updates' });
+        sections = [{ title: "系統更新", description: "遊戲更新與其他消息", data: updates }];
+    } else if (category === '戰隊戰') {
+        const clanBattleNews = await getNews({ type: 'by_category', category: '戰隊戰' });
+        sections = [{ title: "戰隊戰", description: "所有戰隊戰相關消息", data: clanBattleNews }];
+    }
   }
 
   return (
