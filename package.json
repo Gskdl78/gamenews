@@ -7,9 +7,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "crawl:pcr": "ts-node src/scripts/run-crawler.ts",
-    "crawl:bluearchive": "node scripts/run-bluearchive-crawler.js",
-    "check:db": "node scripts/check-database.js"
+    "crawl:pcr": "tsx src/scripts/run-crawler.ts",
+    "crawl:bluearchive": "tsx src/scripts/run-bluearchive-crawler.ts",
+    "debug:bluearchive": "tsx src/scripts/debug-bluearchive-page.ts",
+    "check:db": "tsx src/scripts/check-db.ts"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
@@ -24,9 +25,12 @@
     "date-fns": "^2.30.0",
     "dotenv": "^16.5.0",
     "lodash": "^4.17.21",
-    "next": "14.0.4",
-    "ollama": "^0.4.4",
-    "playwright": "^1.40.0",
+    "next": "14.2.3",
+    "ollama": "^0.5.0",
+    "pino": "^9.0.0",
+    "pino-pretty": "^11.0.0",
+    "playwright": "^1.44.0",
+    "playwright-chromium": "^1.44.0",
     "puppeteer": "^21.11.0",
     "react": "^18",
     "react-dom": "^18",
@@ -35,16 +39,18 @@
     "swr": "^2.3.3"
   },
   "devDependencies": {
+    "@tailwindcss/typography": "^0.5.16",
     "@types/cron": "^2.4.0",
     "@types/node": "^20.17.57",
     "@types/react": "^18",
     "@types/react-dom": "^18",
-    "autoprefixer": "^10.0.1",
+    "autoprefixer": "^10.4.21",
     "eslint": "^8",
-    "eslint-config-next": "14.0.4",
-    "postcss": "^8",
-    "tailwindcss": "^3.3.0",
-    "ts-node": "^10.9.2",
-    "typescript": "^5.8.3"
+    "eslint-config-next": "14.2.3",
+    "postcss": "^8.5.4",
+    "tailwind-scrollbar": "^3.1.0",
+    "tailwindcss": "^3.4.17",
+    "tsx": "^4.19.4",
+    "typescript": "^5"
   }
 }

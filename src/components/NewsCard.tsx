@@ -26,23 +26,20 @@ const formatDate = (dateString: string | undefined) => {
 };
 
 const NewsCard: React.FC<NewsCardProps> = ({ item, onItemClick, gameSlug, subSectionTitle }) => {
-  const imageUrl = item.image_url || (gameSlug === 'princess-connect' ? '/公連備用圖.jpg' : undefined);
+  // 統一備用圖片邏輯
+  const fallbackImage = gameSlug === 'princess-connect' 
+    ? '/公連備用圖.jpg' 
+    : '/檔案備用.jpg';
+  const imageUrl = item.image_url || fallbackImage;
 
-  let dateInfo = {
-    text: `開始時間: ${formatDate(item.start_date || item.published_at)}`,
-    color: 'text.secondary',
-  };
-
-  if (subSectionTitle === '即將結束') {
-    dateInfo = {
-      text: `結束時間: ${formatDate(item.end_date)}`,
-      color: 'error.main', // Red color
-    };
-  } else if (subSectionTitle.includes('歷史')) {
-    dateInfo = {
-      text: `開始時間: ${formatDate(item.start_date || item.published_at)}`,
-      color: 'success.main', // Green color
-    };
+  // 統一日期顯示邏輯
+  let dateText = '';
+  if (item.start_date && item.end_date) {
+    dateText = `期間: ${formatDate(item.start_date)} ~ ${formatDate(item.end_date)}`;
+  } else if (item.start_date) {
+    dateText = `開始: ${formatDate(item.start_date)}`;
+  } else if (item.published_at) {
+    dateText = `發布於: ${formatDate(item.published_at)}`;
   }
 
   return (
@@ -68,8 +65,9 @@ const NewsCard: React.FC<NewsCardProps> = ({ item, onItemClick, gameSlug, subSec
           <Image
             src={imageUrl}
             alt={item.title}
-            layout="fill"
-            objectFit="cover"
+            fill
+            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+            style={{ objectFit: 'cover' }}
           />
         )}
       </Box>
@@ -80,8 +78,8 @@ const NewsCard: React.FC<NewsCardProps> = ({ item, onItemClick, gameSlug, subSec
                 {item.title}
             </Typography>
         </Box>
-        <Typography variant="body2" color={dateInfo.color} sx={{ fontWeight: 'bold' }}>
-          {dateInfo.text}
+        <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 'bold' }}>
+          {dateText}
         </Typography>
       </Box>
     </Paper>

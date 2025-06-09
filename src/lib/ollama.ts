@@ -1,5 +1,22 @@
-import ollama from 'ollama'
+import { Ollama } from 'ollama';
+import * as dotenv from 'dotenv';
+import { join } from 'path';
 
+// 手動加載 .env.local
+dotenv.config({ path: join(process.cwd(), '.env.local') });
+
+// 從環境變數讀取 Ollama API 的基礎 URL，如果未設定則使用預設值
+const OLLAMA_API_BASE_URL = process.env.OLLAMA_API_BASE_URL || 'http://localhost:11434';
+
+// 建立並匯出 Ollama 實例
+export const ollama = new Ollama({ host: OLLAMA_API_BASE_URL });
+
+/**
+ * 使用 Ollama 模型生成內容摘要。
+ * @param title - 新聞標題。
+ * @param content - 新聞的純文字內容。
+ * @returns - 返回由 AI 生成的摘要字串。
+ */
 export async function summarizeContent(title: string, content: string): Promise<string> {
   try {
     console.log('\n=== 開始生成摘要 ===')

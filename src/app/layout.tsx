@@ -8,6 +8,9 @@ const inter = Inter({ subsets: ['latin'] })
 export const metadata: Metadata = {
   title: '遊戲快報',
   description: '為你總結遊戲每天遊戲情報',
+  icons: {
+    icon: '/favicon.png',
+  },
 }
 
 export default function RootLayout({

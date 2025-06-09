@@ -13,20 +13,34 @@ const ITEMS_PER_PAGE = 3;
 const isStartingTomorrow = (item: NewsItem) => {
   if (!item.start_date) return false;
   const tomorrow = startOfTomorrow();
-  return lightFormat(new Date(item.start_date), 'yyyy-MM-dd') === lightFormat(tomorrow, 'yyyy-MM-dd');
+  try {
+    return lightFormat(new Date(item.start_date), 'yyyy-MM-dd') === lightFormat(tomorrow, 'yyyy-MM-dd');
+  } catch {
+    return false;
+  }
 };
 
 const isEndingSoon = (item: NewsItem, days: number) => {
   if (!item.end_date) return false;
   const now = new Date();
-  const endDate = new Date(item.end_date);
-  return isWithinInterval(endDate, { start: now, end: add(now, { days }) });
+  try {
+    const endDate = new Date(item.end_date);
+    return isWithinInterval(endDate, { start: now, end: add(now, { days }) });
+  } catch {
+    return false;
+  }
 };
 
 const isCurrent = (item: NewsItem) => {
-  if (!item.start_date || !item.end_date) return true; // Assume current if no dates
+  if (!item.start_date || !item.end_date) {
+    return false;
+  }
   const now = new Date();
-  return isWithinInterval(now, { start: new Date(item.start_date), end: endOfDay(new Date(item.end_date)) });
+  try {
+    return isWithinInterval(now, { start: new Date(item.start_date), end: endOfDay(new Date(item.end_date)) });
+  } catch {
+    return false;
+  }
 };
 
 export async function generateStaticParams() {
@@ -41,7 +55,13 @@ export default async function GameNewsPage({
   searchParams?: { [key: string]: string | string[] | undefined };
 }) {
   const { slug } = params;
-  const category = typeof searchParams?.category === 'string' ? searchParams.category : 'upcoming';
+  
+  let category: string;
+  if (slug === 'princess-connect') {
+    category = typeof searchParams?.category === 'string' ? searchParams.category : 'upcoming';
+  } else {
+    category = typeof searchParams?.category === 'string' ? searchParams.category : 'home';
+  }
   
   const getPage = (name: string) => {
     const page = searchParams?.[`${name}_page`];
@@ -65,7 +85,9 @@ export default async function GameNewsPage({
       case 'upcoming':
         const startingSoonItems = news.filter(isStartingTomorrow);
         const endingSoonItems = news.filter(item => isEndingSoon(item, 3));
-        const latestNewsItems = [...news, ...updates].sort((a, b) => new Date(b.published_at).getTime() - new Date(a.published_at).getTime());
+        const latestNewsItems = [...news, ...updates]
+          .sort((a, b) => new Date(b.published_at).getTime() - new Date(a.published_at).getTime())
+          .slice(0, 3); // 只取最新的三筆公告
         
         sections.push({
           title: '公主連結',
@@ -73,7 +95,8 @@ export default async function GameNewsPage({
           subSections: [
             { title: '即將開始', ...paginate(startingSoonItems, getPage('即將開始')) },
             { title: '即將結束', ...paginate(endingSoonItems, getPage('即將結束')) },
-            { title: '最新消息', ...paginate(latestNewsItems, getPage('最新消息')) },
+            // 直接傳遞資料，不進行分頁
+            { title: '最新消息', data: latestNewsItems },
           ],
         });
         break;
@@ -104,24 +127,42 @@ export default async function GameNewsPage({
         break;
     }
   } 
-  // --- Blue Archive Logic (remains the same) ---
+  // --- Blue Archive Logic ---
   else if (slug === 'blue-archive') {
-    const news = await getBlueArchiveNews({ limit: 20 });
-    const filteredNews = category === 'all'
-      ? news
-      : news.filter(item => item.category === category);
+    const news: NewsItem[] = await getBlueArchiveNews({ limit: 100 });
 
-    if (category === 'all') {
-      sections.push({ title: '蔚藍檔案', description: '所有最新消息', subSections: [
-        { title: '進行中的活動', data: news.filter(item => item.category === '活動') },
-        { title: '特別招募', data: news.filter(item => item.category === '招募') },
-        { title: '更新資訊', data: news.filter(item => item.category === '更新') },
-        { title: '總力戰', data: news.filter(item => item.category === '總力戰') },
-        { title: '考試', data: news.filter(item => item.category === '考試') },
-        { title: '大決戰', data: news.filter(item => item.category === '大決戰') }
-      ]});
+    if (category === 'home' || category === 'upcoming') { // 'upcoming' is the default
+      const startingSoonItems = news.filter(isStartingTomorrow);
+      const endingSoonItems = news.filter(item => isEndingSoon(item, 3));
+       // FIX: 使用 created_at 進行排序
+      const latestNewsItems = news.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+      sections.push({
+        title: '蔚藍檔案',
+        description: '近期遊戲動態總覽',
+        subSections: [
+          { title: '即將開始', ...paginate(startingSoonItems, getPage('即將開始')) },
+          { title: '即將結束', ...paginate(endingSoonItems, getPage('即將結束')) },
+          { title: '最新消息', ...paginate(latestNewsItems, getPage('最新消息')) },
+        ].filter(sub => sub.data.length > 0), // 只顯示有內容的區塊
+      });
     } else {
-      sections.push({ title: category, description: `關於 ${category} 的最新消息`, subSections: [{ title: category, data: filteredNews }] });
+      const categories = ['活動', '招募', '更新', '總力戰', '考試', '大決戰'];
+      if (categories.includes(category)) {
+        // FIX: 使用 .includes() 進行更寬鬆的比對
+        const allItems = news.filter(item => item.category.includes(category));
+        const currentItems = allItems.filter(isCurrent);
+        const historicalItems = allItems.filter(item => !isCurrent(item));
+
+        sections.push({
+          title: category,
+          description: `關於 ${category} 的正在進行與過往資訊`,
+          subSections: [
+            { title: `目前${category}`, ...paginate(currentItems, getPage(`目前${category}`)) },
+            { title: `歷史${category}`, ...paginate(historicalItems, getPage(`歷史${category}`)) },
+          ].filter(sub => sub.data.length > 0),
+        });
+      }
     }
   }
 

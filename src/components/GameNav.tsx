@@ -19,8 +19,9 @@ const gameNavConfig = {
     ],
   },
   'blue-archive': {
-    logo: '/ba-logo.png', // 假設蔚藍檔案的 logo 路徑
+    logo: '/Blue_Archive_logo.png',
     links: [
+      { label: '蔚藍檔案', category: 'home' },
       { label: '活動', category: '活動' },
       { label: '招募', category: '招募' },
       { label: '更新', category: '更新' },
@@ -83,7 +84,7 @@ interface GameNavProps {
 const GameNav: React.FC<GameNavProps> = ({ gameSlug, gameName }) => {
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const defaultCategory = gameSlug === 'princess-connect' ? 'upcoming' : 'all';
+  const defaultCategory = gameSlug === 'princess-connect' ? 'upcoming' : 'home';
   const currentCategory = searchParams.get('category') || defaultCategory;
 
   const config = gameNavConfig[gameSlug] || { logo: '', links: [] };
@@ -103,13 +104,15 @@ const GameNav: React.FC<GameNavProps> = ({ gameSlug, gameName }) => {
     >
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', maxWidth: '1200px', mx: 'auto' }}>
         <Box sx={{ display: 'flex', alignItems: 'center' }}>
-          {config.logo && (
-            <Link href={`/games/${gameSlug}`} passHref>
-              <Box sx={{ position: 'relative', width: 40, height: 40, mr: 1.5, cursor: 'pointer' }}>
-                <Image src={config.logo} alt={`${gameName} Logo`} layout="fill" objectFit="contain" />
-              </Box>
-            </Link>
-          )}
+          <Box sx={{ width: 40, height: 40, position: 'relative', mr: 2 }}>
+            <Image 
+              src={config.logo} 
+              alt={`${gameName} Logo`} 
+              fill
+              sizes="40px"
+              style={{ objectFit: 'contain' }}
+            />
+          </Box>
           <Link href={`/games/${gameSlug}`} passHref>
             <Typography variant="h5" sx={{ color: 'white', fontWeight: 'bold', cursor: 'pointer' }}>
               {gameName}

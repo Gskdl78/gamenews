@@ -1,8 +1,25 @@
 import { chromium } from 'playwright'
+import { createClient } from '@supabase/supabase-js'
+import * as dotenv from 'dotenv'
+import { join } from 'path'
 import { supabase, checkIfNewsExistsByUrl } from './supabase'
 import { summarizeContent } from './ollama'
 import { subMonths, subDays, parseISO, isAfter, isBefore, parse, isValid } from 'date-fns'
 import { chunk } from 'lodash'
+
+// 手動加載 .env.local
+dotenv.config({ path: join(process.cwd(), '.env.local') });
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY;
+
+if (!supabaseUrl || !supabaseKey || !supabaseServiceKey) {
+  throw new Error('❌ 缺少Supabase環境變數，請檢查 .env.local 檔案。');
+}
+
+// 建立具有管理員權限的客戶端
+const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
 const PCR_NEWS_URL = 'https://www.princessconnect.so-net.tw/news'
 
@@ -201,10 +218,10 @@ async function saveEventNews(item: any, content: string, summary: string, imageU
 // 統一處理所有新聞項目
 async function processNewsItem(item: any, page: any, type: 'news' | 'updates') {
   try {
+    // 存在性檢查已移至主循環，此處不再需要
     console.log(`正在處理 ${type === 'news' ? '活動' : '更新'} 新聞: ${item.title}`);
     await page.goto(item.url, { waitUntil: 'networkidle', timeout: 60000 });
 
-    // 將選擇器從 'article.news-detail-article' 改為 'article.news_con'
     const newsDetail = await page.evaluate(() => {
       const article = document.querySelector('article.news_con');
       if (!article) return { content: '', imageUrl: '' };
@@ -238,91 +255,22 @@ async function processNewsItem(item: any, page: any, type: 'news' | 'updates') {
     } else {
       await saveUpdateNews(item, newsDetail.content, summary, newsDetail.imageUrl);
     }
+    console.log(`✅ 新增成功: ${item.title}`);
+
   } catch (error) {
     console.error(`處理新聞時發生錯誤: ${item.title}`, error);
     throw new Error(`處理單條新聞時發生錯誤: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
-// 處理更新新聞
+// processUpdateNews 和 processEventNews 函式現在只是 processNewsItem 的簡單包裝器，
+// 甚至可以被直接移除，在主循環中直接呼叫 processNewsItem。為了簡化，我們先保留。
 async function processUpdateNews(item: any, page: any) {
-  try {
-    console.log(`處理更新新聞: ${item.title}`);
-    await page.goto(item.url, { waitUntil: 'networkidle' });
-
-    const content = await page.evaluate(() => {
-      const article = document.querySelector('article.news-detail-article');
-      return article ? article.textContent || '' : '';
-    });
-
-    const imageUrl = await page.evaluate(() => {
-      const img = document.querySelector('article.news-detail-article img');
-      return img ? (img as HTMLImageElement).src : '';
-    });
-
-    const summary = await summarizeContent(item.title, content);
-
-    await saveUpdateNews(item, content, summary, imageUrl);
-
-  } catch (error) {
-    console.error('處理更新新聞時發生錯誤:', item.title, error);
-    throw error;
-  }
+  await processNewsItem(item, page, 'updates');
 }
 
-// 處理活動新聞
 async function processEventNews(item: any, page: any) {
-  try {
-    console.log('處理活動新聞:', item.title)
-
-    if (!item.url) {
-      console.log('跳過：URL 為空')
-      return
-    }
-
-    // 獲取新聞內容和圖片
-    console.log('獲取活動新聞詳細內容:', item.url)
-    await page.goto(item.url, {
-      waitUntil: 'networkidle',
-      timeout: 60000
-    })
-    // 還原: 等待活動頁面正確的選擇器
-    await waitForSelectorWithRetry(page, '.news_con')
-    
-    // 獲取內容和圖片
-    const { content, imageUrl } = await page.evaluate(() => {
-      // 還原: 使用活動頁面正確的選擇器
-      const contentEl = document.querySelector('.news_con')
-      if (!contentEl) return { content: '', imageUrl: '' }
-      
-      // 尋找圖片
-      const img = contentEl.querySelector('img')
-      const imageUrl = img ? img.src : ''
-      
-      // 獲取文章內容
-      return {
-        content: contentEl.textContent?.trim() || '',
-        imageUrl
-      }
-    })
-
-    if (!content) {
-      console.log('跳過：內容為空')
-      return
-    }
-
-    // 修正：必須先生成摘要，才能從中提取日期
-    const summary = await summarizeContent(item.title, content);
-
-    // 不再此處檢查活動是否結束，確保所有新聞都先存入資料庫
-    
-    // 儲存到資料庫
-    await saveEventNews(item, content, summary, imageUrl);
-  } catch (error) {
-    console.error(`處理活動新聞時發生錯誤: ${item.title}`, error);
-    // 重新拋出錯誤，讓上層的 try-catch 捕獲
-    throw new Error(`處理單條新聞時發生錯誤: ${error instanceof Error ? error.message : String(error)}`);
-  }
+  await processNewsItem(item, page, 'news');
 }
 
 // Playwright 相關操作的重試函數
@@ -357,9 +305,9 @@ export async function crawlNews() {
 
   try {
     let currentPage = 1
-    let shouldContinue = true
+    let shouldStopCrawling = false // 用於完全停止爬蟲的旗標
 
-    while (shouldContinue) {
+    while (!shouldStopCrawling) {
       const url = `${PCR_NEWS_URL}?page=${currentPage}`
       console.log(`正在導覽至: ${url}`)
       await page.goto(url, { waitUntil: 'networkidle', timeout: 60000 })
@@ -391,7 +339,7 @@ export async function crawlNews() {
 
       if (newsOnPage.length === 0) {
         console.log(`第 ${currentPage} 頁沒有找到新聞，停止爬取。`)
-        shouldContinue = false
+        shouldStopCrawling = true
         continue
       }
       
@@ -399,48 +347,55 @@ export async function crawlNews() {
 
       for (const item of newsOnPage) {
         if (!item) continue;
-        const exists = await checkIfNewsExistsByUrl(item.url);
-        if (exists) {
-          console.log(`發現已存在的公告: "${item.title}"。停止爬取。`);
-          shouldContinue = false;
-          break; // 中斷內部 for 迴圈
-        }
 
         if (shouldExcludeTitle(item.title)) {
           console.log(`根據關鍵字排除新聞: ${item.title}`)
           continue
         }
         
-        if (isUpdateNews(item.title)) {
-          await processNewsItem(item, page, 'updates')
+        const type: 'news' | 'updates' = isUpdateNews(item.title) ? 'updates' : 'news';
+
+        // --- 核心修正 ---
+        // 1. 根據類型，正確傳遞 table 參數
+        // 2. 這是唯一需要進行存在性檢查的地方
+        const exists = await checkIfNewsExistsByUrl(item.url, type);
+        if (exists) {
+          console.log(`✅ 發現已存在的 '${type}' 公告: "${item.title}"。`);
+          console.log('🛑 增量更新完成，停止爬取任務。');
+          shouldStopCrawling = true; // 設定旗標，以便在下一次 while 循環時退出
+          break; // 中斷當前的 for 循環
+        }
+
+        // 如果新聞不存在，則根據類型處理
+        if (type === 'updates') {
+          await processUpdateNews(item, page)
         } else if (isValidCategory(item.category)) {
-          await processNewsItem(item, page, 'news')
+          await processEventNews(item, page)
         } else {
           console.log(`新聞分類不符或被排除，跳過: ${item.title} (分類: ${item.category})`)
         }
       }
 
-      if (shouldContinue) {
+      if (!shouldStopCrawling) {
         const nextPageButton = await page.$('div.paging a[title="下一頁"]');
         if (nextPageButton) {
           currentPage++;
         } else {
           console.log('沒有找到下一頁按鈕，爬取結束。');
-          shouldContinue = false;
+          shouldStopCrawling = true;
         }
       }
     }
     
     console.log('所有新聞處理完畢。')
     
-    // await cleanupExpiredNews(); // 停用過期清理功能
-
   } catch (error) {
-    console.error(`爬取新聞時發生致命錯誤:`, error)
-    throw error
+    console.error('爬蟲過程中發生未預期錯誤:', error)
   } finally {
-    await browser.close()
-    console.log('瀏覽器已關閉，爬蟲任務結束。')
+    if (browser) {
+      await browser.close()
+      console.log('瀏覽器已關閉。')
+    }
   }
 }
 
