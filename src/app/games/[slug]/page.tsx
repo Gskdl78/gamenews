@@ -103,49 +103,14 @@ export default async function GameNewsPage({
     }
   }
 
-  const backgroundImageUrl = slug === 'princess-connect' ? '/公連背景.jpg' : 'none';
-
   return (
-    <div 
-      style={{ 
-        position: 'relative', 
-        minHeight: '100vh', 
-        width: '100%',
-      }}
-    >
-      <div
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundImage: `url(${backgroundImageUrl})`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          backgroundAttachment: 'fixed',
-          zIndex: -2,
-        }}
+    <Suspense fallback={<Box display="flex" justifyContent="center" alignItems="center" minHeight="80vh"><CircularProgress /></Box>}>
+      <GameClientPage 
+        gameSlug={slug}
+        category={category}
+        sections={sections}
+        paginatedSection={paginatedSection}
       />
-      <div 
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: slug === 'princess-connect' ? 'rgba(0, 0, 0, 0.5)' : 'transparent',
-          zIndex: -1,
-        }}
-      />
-      <Suspense fallback={<Box display="flex" justifyContent="center" alignItems="center" minHeight="80vh"><CircularProgress /></Box>}>
-        <GameClientPage 
-          gameSlug={slug}
-          category={category}
-          sections={sections}
-          paginatedSection={paginatedSection}
-        />
-      </Suspense>
-    </div>
+    </Suspense>
   );
 } 
