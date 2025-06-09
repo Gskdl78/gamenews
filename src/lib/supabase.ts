@@ -174,3 +174,20 @@ export async function getBlueArchiveNews(filter: {
 
   return data as NewsItem[];
 } 
+
+// 公主連結專用的新聞獲取函數
+export async function getPrincessConnectNews(filter: any = {}): Promise<NewsItem[]> {
+  // 由於公主連結目前沒有複雜的分類，我們先獲取所有新聞
+  // 未來可以根據需要擴充 filter 邏輯
+  const { data, error } = await supabase
+    .from('news')
+    .select('*')
+    .order('date', { ascending: false });
+
+  if (error) {
+    console.error(`Error fetching Princess Connect news:`, error);
+    return [];
+  }
+
+  return data as NewsItem[];
+} 
