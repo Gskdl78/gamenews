@@ -1,0 +1,30 @@
+import './globals.css'
+import type { Metadata } from 'next'
+import { Inter } from 'next/font/google'
+import Providers from './providers'
+
+const inter = Inter({ subsets: ['latin'] })
+
+export const metadata: Metadata = {
+  title: '遊戲快報',
+  description: '為你總結遊戲每天遊戲情報',
+}
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  return (
+    <html lang="zh-TW">
+      <body className={inter.className}>
+        <Providers>
+          <div className="background-container" />
+          <div className="content-container">
+            {children}
+          </div>
+        </Providers>
+      </body>
+    </html>
+  )
+}

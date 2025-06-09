@@ -1,0 +1,13 @@
+{
+  "dependencies": {
+    "@types/dompurify": "^3.0.5",
+    "framer-motion": "^12.16.0",
+    "isomorphic-dompurify": "^2.25.0",
+    "lodash": "^4.17.21",
+    "react-icons": "^5.5.0",
+    "tailwind-scrollbar": "^4.0.2"
+  },
+  "devDependencies": {
+    "@types/lodash": "^4.17.17"
+  }
+}
