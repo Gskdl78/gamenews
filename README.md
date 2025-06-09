@@ -97,13 +97,15 @@ graph TD
 -   **腳本**: `src/lib/crawler.ts` (由 `src/scripts/run-crawler.ts` 觸發)
 -   **技術**: Playwright
 -   **運作方式**:
-    1.  使用 `crawler.ts` 中封裝的 `Crawler` 類別，該類別對 Playwright 進行了初始化。
-    2.  訪問公主連結官網的新聞頁面。
-    3.  Playwright 等待新聞列表容器 (`#news_list`) 出現。
-    4.  遍歷列表中的每個 `<li>` 元素，提取標題、連結和日期。
-    5.  由於公主連結的公告內容是透過 AJAX 動態加載到一個彈出視窗中的，爬蟲會模擬點擊每一則新聞。
-    6.  監聽並攔截對 `news_detail.php` 的請求，從中直接獲取包含完整公告內容的 HTML 片段。
-    7.  將獲取的 HTML 內容傳送給 Ollama 進行摘要，並存入 Supabase。
+    1.  啟動 Playwright 並開啟新的瀏覽器頁面。
+    2.  實作**增量更新**與**分頁爬取**邏輯：
+        - 爬蟲從新聞列表的第一頁 (`/news?page=1`) 開始。
+        - 逐頁向後遍歷，直到在頁面中遇到第一筆已存在於資料庫的公告，即停止任務，以確保只抓取最新的資料。
+    3.  在新聞列表頁，使用 `page.evaluate()` 解析 DOM，從 `<article class="news_con">` 結構中提取每一則公告的標題、連結、發布日期和分類。
+    4.  直接導航至每一則新公告的詳細頁面 URL。
+    5.  在詳細頁面中，再次使用 `page.evaluate()` 從 `<article class="news_con">` 容器中提取完整的文章內容與圖片。
+    6.  將文章內容傳送給 Ollama 服務進行摘要。
+    7.  將組合後的完整資料（包含摘要和從中提取的活動起訖時間）存入 Supabase 資料庫。
 
 ---
 
